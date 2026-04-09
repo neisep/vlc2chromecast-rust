@@ -17,11 +17,7 @@ cargo test config        # Run only config module tests
 cargo test vlc           # Run only vlc module tests
 ```
 
-Requires Rust 1.85+ (edition 2024). On Linux, you may need system libraries for egui/winit:
-```bash
-# Debian/Ubuntu/Mint
-sudo apt install libgtk-3-dev libxdo-dev
-```
+Requires Rust 1.85+ (edition 2024). No extra system libraries needed — file dialogs use XDG Desktop Portals via `ashpd`.
 
 ## Architecture
 

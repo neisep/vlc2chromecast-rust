@@ -74,9 +74,6 @@ You need [Rust](https://rustup.rs/) 1.85 or later.
 **Linux (Debian/Ubuntu/Mint):**
 
 ```bash
-# Install system dependencies
-sudo apt install libgtk-3-dev libxdo-dev
-
 # Clone and build
 git clone https://github.com/neisep/vlc2chromecast.git
 cd vlc2chromecast
