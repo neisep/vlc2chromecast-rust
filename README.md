@@ -146,6 +146,22 @@ cargo test
 
 ---
 
+## Roadmap
+
+Features we'd like to explore:
+
+- [ ] **Auto-discover Chromecast devices** on the local network (mDNS/SSDP) — no more manually entering IP addresses
+- [ ] **Volume control** — adjust Chromecast volume from the app
+- [ ] **Playlist / queue support** — line up multiple videos to play in sequence
+- [ ] **Subtitle selection** — pick subtitle tracks or load external `.srt` files
+- [ ] **Remember last file location** — file picker opens where you last browsed
+- [ ] **System tray mode** — minimize to tray while streaming
+- [ ] **Keyboard shortcuts** — spacebar for pause, arrow keys for seek
+
+Have an idea? [Open an issue](https://github.com/neisep/vlc2chromecast/issues) and let us know!
+
+---
+
 ## History
 
 This project started as a [C# Windows Forms application](https://github.com/neisep/vlc2chromecast/tree/dotnet-legacy) and was rewritten in Rust with [egui](https://github.com/emilk/egui) to support Linux and provide a better cross-platform experience.
