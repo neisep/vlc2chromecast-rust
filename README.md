@@ -4,18 +4,18 @@
     Stream local video files to your Chromecast — powered by VLC
     <br />
     <br />
-    <a href="https://github.com/neisep/vlc2chromecast/releases">Download</a>
+    <a href="https://github.com/neisep/vlc2chromecast-rust/releases">Download</a>
     &middot;
-    <a href="https://github.com/neisep/vlc2chromecast/issues">Report Bug</a>
+    <a href="https://github.com/neisep/vlc2chromecast-rust/issues">Report Bug</a>
     &middot;
-    <a href="https://github.com/neisep/vlc2chromecast/issues">Request Feature</a>
+    <a href="https://github.com/neisep/vlc2chromecast-rust/issues">Request Feature</a>
   </p>
 </p>
 
 <p align="center">
-  <a href="https://github.com/neisep/vlc2chromecast/releases"><img src="https://img.shields.io/github/v/release/neisep/vlc2chromecast?style=flat-square" alt="Latest Release"></a>
-  <a href="https://github.com/neisep/vlc2chromecast/blob/master/LICENSE"><img src="https://img.shields.io/github/license/neisep/vlc2chromecast?style=flat-square" alt="License"></a>
-  <a href="https://github.com/neisep/vlc2chromecast/actions"><img src="https://img.shields.io/github/actions/workflow/status/neisep/vlc2chromecast/main.yml?style=flat-square" alt="Build Status"></a>
+  <a href="https://github.com/neisep/vlc2chromecast-rust/releases"><img src="https://img.shields.io/github/v/release/neisep/vlc2chromecast-rust?style=flat-square" alt="Latest Release"></a>
+  <a href="https://github.com/neisep/vlc2chromecast-rust/blob/master/LICENSE"><img src="https://img.shields.io/github/license/neisep/vlc2chromecast-rust?style=flat-square" alt="License"></a>
+  <a href="https://github.com/neisep/vlc2chromecast-rust/actions"><img src="https://img.shields.io/github/actions/workflow/status/neisep/vlc2chromecast-rust/build.yml?style=flat-square" alt="Build Status"></a>
 </p>
 
 ---
@@ -65,7 +65,7 @@ The app doesn't stream video itself — it orchestrates VLC's built-in Chromecas
 
 #### Download a Release
 
-Grab the latest binary from the [Releases](https://github.com/neisep/vlc2chromecast/releases) page.
+Grab the latest binary from the [Releases](https://github.com/neisep/vlc2chromecast-rust/releases) page.
 
 #### Build from Source
 
@@ -75,7 +75,7 @@ You need [Rust](https://rustup.rs/) 1.85 or later.
 
 ```bash
 # Clone and build
-git clone https://github.com/neisep/vlc2chromecast.git
+git clone https://github.com/neisep/vlc2chromecast-rust.git
 cd vlc2chromecast
 cargo build --release
 
@@ -85,7 +85,7 @@ cargo build --release
 **Windows:**
 
 ```bash
-git clone https://github.com/neisep/vlc2chromecast.git
+git clone https://github.com/neisep/vlc2chromecast-rust.git
 cd vlc2chromecast
 cargo build --release
 
@@ -158,13 +158,13 @@ Features we'd like to explore:
 - [ ] **System tray mode** — minimize to tray while streaming
 - [ ] **Keyboard shortcuts** — spacebar for pause, arrow keys for seek
 
-Have an idea? [Open an issue](https://github.com/neisep/vlc2chromecast/issues) and let us know!
+Have an idea? [Open an issue](https://github.com/neisep/vlc2chromecast-rust/issues) and let us know!
 
 ---
 
 ## History
 
-This project started as a [C# Windows Forms application](https://github.com/neisep/vlc2chromecast/tree/dotnet-legacy) and was rewritten in Rust with [egui](https://github.com/emilk/egui) to support Linux and provide a better cross-platform experience.
+This project started as a [C# Windows Forms application](https://github.com/neisep/vlc2chromecast) and was rewritten in Rust with [egui](https://github.com/emilk/egui) to support Linux and provide a better cross-platform experience.
 
 ---
 
