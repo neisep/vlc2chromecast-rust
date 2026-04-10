@@ -126,7 +126,8 @@ jobs:
           $mesaUrl = "https://github.com/pal1000/mesa-dist-win/releases/download/$mesaVersion/mesa3d-$mesaVersion-release-msvc.7z"
           Invoke-WebRequest -Uri $mesaUrl -OutFile mesa.7z
           7z x mesa.7z -omesa
-          Copy-Item "mesa\x64\opengl32.dll" "target\${{ matrix.target }}\release\opengl32.dll"
+          $releaseDir = "target\${{ matrix.target }}\release"
+          Copy-Item "mesa\x64\*.dll" "$releaseDir\"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -134,7 +135,7 @@ jobs:
           name: vlc2chromecast-${{ matrix.target }}
           path: |
             target/${{ matrix.target }}/release/${{ matrix.artifact }}
-            target/${{ matrix.target }}/release/opengl32.dll
+            target/${{ matrix.target }}/release/*.dll
 
   release:
     needs: [version, build]
@@ -161,8 +162,8 @@ jobs:
           # Windows: zip with Mesa3D opengl32.dll for software rendering fallback
           mkdir -p release/windows
           cp artifacts/vlc2chromecast-x86_64-pc-windows-msvc/vlc2chromecast.exe release/windows/
-          cp artifacts/vlc2chromecast-x86_64-pc-windows-msvc/opengl32.dll release/windows/
-          cd release && zip -j vlc2chromecast-windows-x86_64.zip windows/vlc2chromecast.exe windows/opengl32.dll
+          cp artifacts/vlc2chromecast-x86_64-pc-windows-msvc/*.dll release/windows/
+          cd release && zip -j vlc2chromecast-windows-x86_64.zip windows/*
 
       - name: Create GitHub release
         env:
