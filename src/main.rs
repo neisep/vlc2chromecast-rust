@@ -49,7 +49,10 @@ fn main() -> eframe::Result {
     let result = eframe::run_native(
         "vlc2chromecast",
         build_options(eframe::Renderer::Wgpu),
-        Box::new(|_cc| Ok(Box::new(app::VlcChromecastApp::new()))),
+        Box::new(|cc| {
+            cc.egui_ctx.set_visuals(eframe::egui::Visuals::dark());
+            Ok(Box::new(app::VlcChromecastApp::new()))
+        }),
     );
 
     match result {
@@ -57,7 +60,10 @@ fn main() -> eframe::Result {
         Err(_) => eframe::run_native(
             "vlc2chromecast",
             build_options(eframe::Renderer::Glow),
-            Box::new(|_cc| Ok(Box::new(app::VlcChromecastApp::new()))),
+            Box::new(|cc| {
+                cc.egui_ctx.set_visuals(eframe::egui::Visuals::dark());
+                Ok(Box::new(app::VlcChromecastApp::new()))
+            }),
         ),
     }
 }
