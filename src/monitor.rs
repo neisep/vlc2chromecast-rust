@@ -3,7 +3,9 @@
 /// the given size on the monitor where the cursor is.
 #[cfg(target_os = "linux")]
 pub fn center_on_cursor_monitor(window_width: f32, window_height: f32) -> Option<(f32, f32)> {
-    unsafe {
+    // SAFETY: X11 FFI calls require unsafe. The pointer dereferences and
+    // resource cleanup (XFree, XCloseDisplay) are bounded within this block.
+    let target = unsafe {
         let xlib = x11_dl::xlib::Xlib::open().ok()?;
         let xinerama = x11_dl::xinerama::Xlib::open().ok()?;
 
@@ -12,7 +14,6 @@ pub fn center_on_cursor_monitor(window_width: f32, window_height: f32) -> Option
             return None;
         }
 
-        // Query cursor position
         let root = (xlib.XDefaultRootWindow)(display);
         let mut root_return = 0;
         let mut child_return = 0;
@@ -33,11 +34,10 @@ pub fn center_on_cursor_monitor(window_width: f32, window_height: f32) -> Option
             &mut mask,
         );
 
-        // Query monitor geometries via Xinerama
         let mut num_screens = 0;
         let screens = (xinerama.XineramaQueryScreens)(display, &mut num_screens);
 
-        let mut target: Option<(i16, i16, i16, i16)> = None;
+        let mut found: Option<(i16, i16, i16, i16)> = None;
         if !screens.is_null() && num_screens > 0 {
             for i in 0..num_screens {
                 let s = *screens.offset(i as isize);
@@ -46,7 +46,7 @@ pub fn center_on_cursor_monitor(window_width: f32, window_height: f32) -> Option
                 let sw = s.width as i32;
                 let sh = s.height as i32;
                 if cursor_x >= sx && cursor_x < sx + sw && cursor_y >= sy && cursor_y < sy + sh {
-                    target = Some((s.x_org, s.y_org, s.width, s.height));
+                    found = Some((s.x_org, s.y_org, s.width, s.height));
                     break;
                 }
             }
@@ -54,12 +54,13 @@ pub fn center_on_cursor_monitor(window_width: f32, window_height: f32) -> Option
         }
 
         (xlib.XCloseDisplay)(display);
+        found
+    };
 
-        let (mx, my, mw, mh) = target?;
-        let center_x = mx as f32 + (mw as f32 - window_width) / 2.0;
-        let center_y = my as f32 + (mh as f32 - window_height) / 2.0;
-        Some((center_x, center_y))
-    }
+    let (mx, my, mw, mh) = target?;
+    let center_x = mx as f32 + (mw as f32 - window_width) / 2.0;
+    let center_y = my as f32 + (mh as f32 - window_height) / 2.0;
+    Some((center_x, center_y))
 }
 
 #[cfg(not(target_os = "linux"))]

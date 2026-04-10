@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct Config {
     pub chromecast_ip: String,
     pub vlc_path: String,
@@ -74,6 +75,14 @@ mod tests {
         let restored: Config = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.chromecast_ip, "192.168.1.100");
         assert_eq!(restored.vlc_path, "/usr/bin/vlc");
+    }
+
+    #[test]
+    fn deserialize_partial_json_fills_defaults() {
+        let json = r#"{"chromecast_ip": "192.168.1.50"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.chromecast_ip, "192.168.1.50");
+        assert_eq!(config.vlc_path, default_vlc_path());
     }
 
     #[test]

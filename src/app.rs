@@ -8,6 +8,8 @@ use eframe::egui;
 use crate::config::Config;
 use crate::vlc::{self, PlaybackState};
 
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts"];
+
 pub struct VlcChromecastApp {
     config: Config,
     video_file: String,
@@ -16,7 +18,7 @@ pub struct VlcChromecastApp {
     vlc_process: Option<Child>,
     playback: Arc<Mutex<PlaybackState>>,
     monitor_stop: Arc<AtomicBool>,
-    monitor_thread: Option<JoinHandle<()>>,
+    monitor_threads: Option<(JoinHandle<()>, JoinHandle<()>)>,
 }
 
 impl VlcChromecastApp {
@@ -30,7 +32,7 @@ impl VlcChromecastApp {
             vlc_process: None,
             playback: Arc::new(Mutex::new(PlaybackState::default())),
             monitor_stop: Arc::new(AtomicBool::new(false)),
-            monitor_thread: None,
+            monitor_threads: None,
         }
     }
 
@@ -39,36 +41,48 @@ impl VlcChromecastApp {
         self.status_is_error = is_error;
     }
 
-    fn start_monitor(&mut self, ctx: &egui::Context) {
-        self.stop_monitor();
+    fn start_monitor(&mut self, ctx: &egui::Context, stderr: std::process::ChildStderr) {
+        // Old VLC is already dead (killed by launch_vlc) — safe to join directly
+        self.monitor_stop.store(true, Ordering::Relaxed);
+        if let Some((stderr_handle, poll_handle)) = self.monitor_threads.take() {
+            let _ = poll_handle.join();
+            let _ = stderr_handle.join();
+        }
         self.monitor_stop = Arc::new(AtomicBool::new(false));
         self.playback = Arc::new(Mutex::new(PlaybackState::default()));
-        self.monitor_thread = Some(vlc::start_playback_monitor(
+        self.monitor_threads = Some(vlc::start_playback_monitor(
             Arc::clone(&self.playback),
             Arc::clone(&self.monitor_stop),
             ctx.clone(),
+            stderr,
         ));
     }
 
-    fn stop_monitor(&mut self) {
+    /// Idempotent cleanup: kill VLC, then join monitor threads.
+    /// VLC must die first — its stderr pipe closing is what unblocks the
+    /// stderr reader thread.  Reversing the order deadlocks.
+    /// Called from the Stop button, on_exit, and Drop.
+    fn cleanup(&mut self) {
         self.monitor_stop.store(true, Ordering::Relaxed);
-        if let Some(handle) = self.monitor_thread.take() {
-            let _ = handle.join();
+        vlc::kill_previous(&mut self.vlc_process);
+        if let Some((stderr_handle, poll_handle)) = self.monitor_threads.take() {
+            let _ = poll_handle.join();
+            let _ = stderr_handle.join();
         }
+        *self.playback.lock().unwrap_or_else(|e| e.into_inner()) = PlaybackState::default();
     }
 }
 
 impl Drop for VlcChromecastApp {
     fn drop(&mut self) {
-        self.stop_monitor();
-        vlc::kill_previous(&mut self.vlc_process);
+        // Safety net: ensures VLC is killed even if on_exit wasn't called
+        self.cleanup();
     }
 }
 
 impl eframe::App for VlcChromecastApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        self.stop_monitor();
-        vlc::kill_previous(&mut self.vlc_process);
+        self.cleanup();
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -76,8 +90,21 @@ impl eframe::App for VlcChromecastApp {
         ctx.input(|i| {
             if !i.raw.dropped_files.is_empty() {
                 if let Some(path) = i.raw.dropped_files[0].path.as_ref() {
-                    self.video_file = path.display().to_string();
-                    self.set_status(format!("File selected: {}", self.video_file), false);
+                    let ext = path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    if VIDEO_EXTENSIONS.contains(&ext.as_str()) {
+                        self.video_file = path.display().to_string();
+                        self.set_status(format!("File selected: {}", self.video_file), false);
+                    } else {
+                        self.set_status(
+                            "Unsupported file type. Supported: mp4, mkv, avi, mov, wmv, flv, webm, m4v, ts"
+                                .to_string(),
+                            true,
+                        );
+                    }
                 }
             }
         });
@@ -87,34 +114,37 @@ impl eframe::App for VlcChromecastApp {
             ui.heading("Settings");
             ui.add_space(4.0);
 
-            ui.horizontal(|ui| {
-                ui.label("Chromecast IP:");
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.config.chromecast_ip)
-                        .hint_text("e.g. 192.168.1.100")
-                        .desired_width(ui.available_width()),
-                );
-            });
+            egui::Grid::new("settings_grid")
+                .num_columns(2)
+                .spacing([8.0, 4.0])
+                .show(ui, |ui| {
+                    ui.label("Chromecast IP:");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.config.chromecast_ip)
+                            .hint_text("e.g. 192.168.1.100")
+                            .desired_width(ui.available_width()),
+                    );
+                    ui.end_row();
 
-            ui.add_space(4.0);
-
-            ui.horizontal(|ui| {
-                ui.label("VLC Path:       ");
-                let browse_width = 80.0;
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.config.vlc_path)
-                        .hint_text("Path to VLC executable")
-                        .desired_width(ui.available_width() - browse_width),
-                );
-                if ui.button("Browse...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .set_title("Select VLC Executable")
-                        .pick_file()
-                    {
-                        self.config.vlc_path = path.display().to_string();
-                    }
-                }
-            });
+                    ui.label("VLC Path:");
+                    ui.horizontal(|ui| {
+                        let browse_width = 80.0;
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.config.vlc_path)
+                                .hint_text("Path to VLC executable")
+                                .desired_width(ui.available_width() - browse_width),
+                        );
+                        if ui.button("Browse...").clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .set_title("Select VLC Executable")
+                                .pick_file()
+                            {
+                                self.config.vlc_path = path.display().to_string();
+                            }
+                        }
+                    });
+                    ui.end_row();
+                });
 
             ui.add_space(4.0);
             if ui.button("Save Settings").clicked() {
@@ -127,9 +157,24 @@ impl eframe::App for VlcChromecastApp {
         });
 
         egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
+            let pb = self.playback.lock().unwrap_or_else(|e| e.into_inner()).clone();
+
+            // Surface VLC errors to the status bar
+            if let Some(ref error) = pb.error {
+                if self.vlc_process.is_some() {
+                    self.set_status(error.clone(), true);
+                    self.cleanup();
+                }
+            }
+
+            // Auto-cleanup when playback finishes naturally
+            if pb.finished && self.vlc_process.is_some() {
+                self.cleanup();
+                self.set_status("Playback finished.".to_string(), false);
+            }
+
             // Playback progress bar
-            let pb = self.playback.lock().unwrap().clone();
-            if pb.duration_secs > 0.0 {
+            if pb.duration_secs > 0.0 && self.vlc_process.is_some() {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     let pause_label = if pb.is_playing { "⏸ Pause" } else { "▶ Resume" };
@@ -138,8 +183,7 @@ impl eframe::App for VlcChromecastApp {
                     }
 
                     if ui.button("⏹ Stop").clicked() {
-                        self.stop_monitor();
-                        vlc::kill_previous(&mut self.vlc_process);
+                        self.cleanup();
                         self.set_status("Stream stopped.".to_string(), false);
                     }
 
@@ -195,10 +239,7 @@ impl eframe::App for VlcChromecastApp {
                 if ui.button("Select Video File").clicked() {
                     if let Some(path) = rfd::FileDialog::new()
                         .set_title("Select Video File")
-                        .add_filter(
-                            "Video Files",
-                            &["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts"],
-                        )
+                        .add_filter("Video Files", VIDEO_EXTENSIONS)
                         .pick_file()
                     {
                         self.video_file = path.display().to_string();
@@ -223,12 +264,12 @@ impl eframe::App for VlcChromecastApp {
                             &self.config.chromecast_ip,
                             &mut self.vlc_process,
                         ) {
-                            Ok(()) => {
+                            Ok(stderr) => {
                                 self.set_status(
                                     "Launching VLC — streaming to Chromecast...".to_string(),
                                     false,
                                 );
-                                self.start_monitor(ctx);
+                                self.start_monitor(ctx, stderr);
                             }
                             Err(e) => self.set_status(e, true),
                         }
