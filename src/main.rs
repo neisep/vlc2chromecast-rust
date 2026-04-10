@@ -50,7 +50,7 @@ fn main() -> eframe::Result {
         "vlc2chromecast",
         build_options(eframe::Renderer::Wgpu),
         Box::new(|cc| {
-            cc.egui_ctx.set_visuals(eframe::egui::Visuals::dark());
+            cc.egui_ctx.set_theme(eframe::egui::ThemePreference::Dark);
             Ok(Box::new(app::VlcChromecastApp::new()))
         }),
     );
@@ -61,7 +61,7 @@ fn main() -> eframe::Result {
             "vlc2chromecast",
             build_options(eframe::Renderer::Glow),
             Box::new(|cc| {
-                cc.egui_ctx.set_visuals(eframe::egui::Visuals::dark());
+                cc.egui_ctx.set_theme(eframe::egui::ThemePreference::Dark);
                 Ok(Box::new(app::VlcChromecastApp::new()))
             }),
         ),
