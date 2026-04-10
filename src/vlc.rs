@@ -64,7 +64,7 @@ pub fn seek(seconds: f64) {
     send_vlc_command(&format!("seek&val={}", seconds as u64));
 }
 
-/// Stop playback, then kill VLC process and its entire process group.
+/// Stop playback, then kill the VLC process.
 pub fn kill_previous(child: &mut Option<Child>) {
     if let Some(proc) = child {
         if proc.try_wait().ok().flatten().is_none() {
@@ -72,15 +72,6 @@ pub fn kill_previous(child: &mut Option<Child>) {
             send_vlc_command("pl_stop");
             std::thread::sleep(Duration::from_millis(300));
 
-            // Kill the entire process group (VLC + any child processes)
-            #[cfg(unix)]
-            {
-                let pgid = proc.id();
-                let _ = Command::new("kill")
-                    .args(["-TERM", &format!("-{pgid}")])
-                    .status();
-                std::thread::sleep(Duration::from_millis(500));
-            }
             // Force kill if still running
             if proc.try_wait().ok().flatten().is_none() {
                 let _ = proc.kill();
@@ -115,13 +106,6 @@ pub fn launch_vlc(
 
     let mut cmd = Command::new(vlc_path);
     cmd.args(&args);
-
-    // Put VLC in its own process group so we can kill all child processes together
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
 
     let child = cmd
         .spawn()
