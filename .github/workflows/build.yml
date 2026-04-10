@@ -1,4 +1,4 @@
-name: Build
+name: Build & Release
 
 on:
   push:
@@ -6,7 +6,75 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: write
+
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      should_release: ${{ steps.bump.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: bump
+        run: |
+          # If HEAD is already tagged, skip
+          if git describe --exact-match HEAD 2>/dev/null; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LATEST_TAG" ]; then
+            # No tags exist — start at 1.0.0.0
+            echo "new_version=1.0.0.0" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -r MAJOR MINOR PATCH BUILD <<< "$VERSION"
+          BUILD=${BUILD:-0}
+
+          # Commit messages since last tag
+          COMMITS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s")
+
+          if [ -z "$COMMITS" ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Determine bump from conventional commit prefixes
+          #   feat!: or BREAKING CHANGE → major (1st digit)
+          #   feat:                      → minor (2nd digit)
+          #   fix:                       → patch (3rd digit)
+          #   anything else              → build (4th digit)
+          BUMP="build"
+          if echo "$COMMITS" | grep -qiE "^feat!(\(.+\))?:|BREAKING CHANGE"; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
+            BUMP="minor"
+          elif echo "$COMMITS" | grep -qiE "^fix(\(.+\))?:"; then
+            BUMP="patch"
+          fi
+
+          case $BUMP in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0; BUILD=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0; BUILD=0 ;;
+            patch) PATCH=$((PATCH + 1)); BUILD=0 ;;
+            build) BUILD=$((BUILD + 1)) ;;
+          esac
+
+          echo "new_version=${MAJOR}.${MINOR}.${PATCH}.${BUILD}" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
   build:
     strategy:
       matrix:
@@ -55,3 +123,35 @@ jobs:
         with:
           name: vlc2chromecast-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/${{ matrix.artifact }}
+
+  release:
+    needs: [version, build]
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          cp artifacts/vlc2chromecast-x86_64-unknown-linux-gnu/vlc2chromecast release/vlc2chromecast-linux-x86_64
+          cp artifacts/vlc2chromecast-x86_64-pc-windows-msvc/vlc2chromecast.exe release/vlc2chromecast-windows-x86_64.exe
+          chmod +x release/vlc2chromecast-linux-x86_64
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.version.outputs.new_version }}"
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --generate-notes \
+            release/vlc2chromecast-linux-x86_64 \
+            release/vlc2chromecast-windows-x86_64.exe
