@@ -81,7 +81,7 @@ impl Drop for VlcChromecastApp {
 }
 
 impl eframe::App for VlcChromecastApp {
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+    fn on_exit(&mut self) {
         self.cleanup();
     }
 
